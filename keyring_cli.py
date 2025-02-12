@@ -14,12 +14,11 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 SERVICE_NAME = "GlobalSecrets"
-EXPORT_FILE = r"C:\pwsh_output_log\keyring_backup.enc"
-TRACKED_KEYS_FILE = r"C:\pwsh_output_log\tracked_keys.json"
-MIGRATION_FILE = r"C:\pwsh_output_log\keyring_migration.enc"
+EXPORT_FILE = r"C:\.virtualenv\keyring_backup.enc"
+TRACKED_KEYS_FILE = r"C:\.virtualenv\tracked_keys.json"
+MIGRATION_FILE = r"C:\.virtualenv\keyring_migration.enc"
 
 def verify_windows_login(password: str) -> bool:
-    """Verify Windows login credentials."""
     try:
         domain = win32api.GetComputerName()
         username = getpass.getuser()
@@ -36,24 +35,20 @@ def verify_windows_login(password: str) -> bool:
         return False
 
 def get_encryption_key(password: str) -> bytes:
-    """Generate an encryption key from the password."""
     key = hashlib.sha256(password.encode()).digest()
     return base64.urlsafe_b64encode(key[:32])
 
 def encrypt_data(data: str, password: str) -> str:
-    """Encrypt data using a password."""
     key = get_encryption_key(password)
     cipher = Fernet(key)
     return cipher.encrypt(data.encode()).decode()
 
 def decrypt_data(encrypted_data: str, password: str) -> str:
-    """Decrypt data using a password."""
     key = get_encryption_key(password)
     cipher = Fernet(key)
     return cipher.decrypt(encrypted_data.encode()).decode()
 
 def track_key_usage(key_name: str, description: Optional[str] = None, source: Optional[str] = None):
-    """Track added keys with metadata."""
     if not os.path.exists(TRACKED_KEYS_FILE):
         tracked_data = {}
     else:
@@ -72,14 +67,12 @@ def track_key_usage(key_name: str, description: Optional[str] = None, source: Op
         json.dump(tracked_data, f, indent=4)
 
 def get_tracked_keys() -> Dict[str, Any]:
-    """Retrieve all tracked keys with their metadata."""
     if os.path.exists(TRACKED_KEYS_FILE):
         with open(TRACKED_KEYS_FILE, "r") as f:
             return json.load(f)
     return {}
 
 def bulk_import_json(json_file_path: str):
-    """Import multiple keys from a JSON file."""
     windows_password = getpass.getpass("Enter your Windows login password: ")
     if not verify_windows_login(windows_password):
         print("Error: Incorrect Windows login password.")
@@ -107,7 +100,6 @@ def bulk_import_json(json_file_path: str):
         print(f"Error importing JSON: {str(e)}")
 
 def bulk_import_toml(toml_file_path: str):
-    """Import multiple keys from a TOML file."""
     windows_password = getpass.getpass("Enter your Windows login password: ")
     if not verify_windows_login(windows_password):
         print("Error: Incorrect Windows login password.")
