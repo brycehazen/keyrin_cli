@@ -6,11 +6,11 @@
 ---
 
 ## **2 Setting Up `keyring_cli.py` to be used globally (not in a venv)**
-### **Change location of where files should be  in keyring_cli.py:***
-   - `SERVICE_NAME = "GlobalSecrets"`
-   - `EXPORT_FILE = r"C:\.virtualenv\keyring_backup.enc"`
-   - `TRACKED_KEYS_FILE = r"C:\.virtualenv\tracked_keys.json"`
-   - `MIGRATION_FILE = r"C:\.virtualenv\keyring_migration.enc"`
+### **Change location of where files should be in thhe script `keyring_cli.py`:***
+   - Backup file: `EXPORT_FILE = r"C:\.virtualenv\keyring_backup.enc"` 
+   - Log to track usage: `TRACKED_KEYS_FILE = r"C:\.virtualenv\tracked_keys.json"` 
+   - Used to migrate to new workstation: `MIGRATION_FILE = r"C:\.virtualenv\keyring_migration.enc"`
+
 
 ### **Put `keyring_cli.py` and `setup.py` together into a folder:**
    ```sh
