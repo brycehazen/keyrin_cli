@@ -1,124 +1,107 @@
 # Keyring CLI Setup & Usage Guide
 
 ## **1. Overview**
-`keyring_cli.py` is a command-line tool for securely storing and managing API keys, tokens, and credentials using the system's keyring. This guide walks you through setup and usage.
+`keyring_cli.py` is a command-line tool for securely storing and managing API keys, tokens, and credentials using the system's keyring. This also tracks usage and where keys are used. It uses Windows Credential manager for the password to export and deycrpt the key if you need to migrate..
 
 ---
 
-## **2. Installation**
-### **2.1 Install Required Dependencies**
-Ensure you have `pipenv` installed and set up:
-```sh
-pip install pipenv
-```
-Then navigate to your project folder and install dependencies:
-```sh
-pipenv install
-pipenv install keyring cryptography
-```
+## **2 Setting Up `keyring_cli.py` to be used globally (not in a venv)y**
+### **Change location of where files should be  in keyring_cli.py:***
+   - `SERVICE_NAME = "GlobalSecrets"`
+   - `EXPORT_FILE = r"C:\.virtualenv\keyring_backup.enc"`
+   - `TRACKED_KEYS_FILE = r"C:\.virtualenv\tracked_keys.json"`
+   - `MIGRATION_FILE = r"C:\.virtualenv\keyring_migration.enc"`
 
----
-
-## **3. Setting Up `keyring_cli.py`**
-1. **Move `keyring_cli.py` to a persistent location**, such as:
-   ```
-   C:\.virtualenvs\keyring_cli.py  (Windows)
-   /usr/local/bin/keyring_cli.py      (Linux/macOS)
-   ```
-2. **Ensure it's executable** (Linux/macOS):
+### **Put `keyring_cli.py` and `setup.py` together into a folder:**
    ```sh
-   chmod +x keyring_cli.py
+      pip install .
    ```
-
+### **Test to ensure it installed and is working:**
+   ```sh
+      keyring-cli list
+   ```
 ---
 
-## **4. Using `keyring_cli.py`**
-### **4.1 Store a Secret**
+## **3. Using `keyring_cli.py`**
+### **Store a Secret**
 ```sh
-python keyring_cli.py store --key <key_name> --value <secret_value>
+keyring-cli store --key <key_name> --value <secret_value>
 ```
 Example:
 ```sh
-python keyring_cli.py store --key api_key --value my_secret_api_key
+keyring-cli store --key api_key --value my_secret_api_key
 ```
 
-### **4.2 Retrieve a Secret**
+### **Retrieve a Secret**
 ```sh
-python keyring_cli.py get --key <key_name>
+keyring-cli get --key <key_name>
 ```
 Example:
 ```sh
-python keyring_cli.py get --key api_key
+keyring-cli get --key api_key
 ```
 
-### **4.3 List Stored Keys**
+### **List Stored Keys**
 ```sh
-python keyring_cli.py list
+keyring-cli list
 ```
 This shows stored **key names only** (not values).
 
-### **4.4 Delete a Secret**
+### **Delete a Secret**
 ```sh
-python keyring_cli.py delete --key <key_name>
+keyring-cli delete --key <key_name>
 ```
 Example:
 ```sh
-python keyring_cli.py delete --key api_key
+keyring-cli delete --key api_key
 ```
 
 ---
 
-## **5. Exporting & Importing Keys Securely**
-### **5.1 Export Encrypted Secrets**
+## **4. Exporting & Importing Keys Securely**
+### **Export Encrypted Secrets**
 ```sh
-python keyring_cli.py export
+keyring-cli export
 ```
 - Prompts for your **workstation login password** or a custom password.
 - Saves an **encrypted** backup in `C:\.virtualenvs\keyring_backup.enc`.
 
-### **5.2 Import Encrypted Secrets**
+### **Import Encrypted Secrets**
 ```sh
-python keyring_cli.py import
+keyring-cli import
 ```
 - Prompts for the password used to encrypt the backup.
 - Restores all previously stored keys.
 
 ---
 
-## **6. Migrating to a New Workstation**
-### **6.1 Export for Migration**
+## **5. Migrating to a New Workstation**
+### **Export for Migration**
 ```sh
-python keyring_cli.py export-migration
+keyring-cli export-migration
 ```
 - Creates an encrypted migration backup.
 
-### **6.2 Import on a New Machine**
+### **Import on a New Machine**
 ```sh
-python keyring_cli.py import-migration
+keyring-cli import-migration
 ```
 - Prompts for the migration password to restore keys.
 
 ---
 
-## **7. Automating Key Backups**
+## **6. Automating Key Backups**
 To **schedule automatic backups** every 24 hours:
 - **Windows:** Use Task Scheduler
   ```sh
   schtasks /create /tn "Keyring Backup" /tr "python C:\.virtualenvs\keyring_cli.py export" /sc daily /st 00:00
   ```
-- **Linux/macOS:** Use Cron
-  ```sh
-  crontab -e
-  ```
-  Add:
-  ```
-  0 0 * * * python3 /usr/local/bin/keyring_cli.py export
-  ```
+
 
 ---
 
-## **8. Using Stored Keys in Python Scripts**
-### **8.1 Retrieving Keys in Python**
+## **7 Using Stored Keys in Python Scripts**
+### **Retrieving Keys in Python**
 ```python
 import keyring
 
@@ -129,7 +112,7 @@ client_id = keyring.get_password(SERVICE_NAME, "sky_app_information.app_id")
 webhook_key = keyring.get_password(SERVICE_NAME, "webhook.webhook_key")
 ```
 
-### **8.2 Making Authenticated API Calls**
+### **Making Authenticated API Calls**
 ```python
 import requests
 import keyring
@@ -143,18 +126,18 @@ print(response.json())
 
 ---
 
-## **9. Troubleshooting**
-### **9.1 Key Not Found?**
+## **8. Troubleshooting**
+### **Key Not Found?**
 Check if the key exists:
 ```sh
-python keyring_cli.py list
+keyring-cli list
 ```
 If missing, re-add it:
 ```sh
-python keyring_cli.py store --key api_key --value my_secret_api_key
+keyring-cli store --key api_key --value my_secret_api_key
 ```
 
-### **9.2 Keyring Not Working?**
+### **Keyring Not Working?**
 Try:
 ```sh
 python -m keyring --help
@@ -166,22 +149,16 @@ python -m keyring set GlobalSecrets api_key my_secret_api_key
 
 ---
 
-## **10. Summary of CLI Commands**
+## **9. Summary of CLI Commands**
 | **Command** | **Description** |
 |------------|----------------|
-| `python keyring_cli.py store --key <key_name> --value <value>` | Store a key securely |
-| `python keyring_cli.py get --key <key_name>` | Retrieve a stored key |
-| `python keyring_cli.py list` | List stored keys (names only) |
-| `python keyring_cli.py delete --key <key_name>` | Delete a key from keyring |
-| `python keyring_cli.py export` | Export all keys (encrypted) |
-| `python keyring_cli.py import` | Import keys from encrypted backup |
-| `python keyring_cli.py export-migration` | Export for moving to a new workstation |
-| `python keyring_cli.py import-migration` | Import keys on a new workstation |
+| `keyring-cli store --key <key_name> --value <value>` | Store a key securely |
+| `keyring-cli get --key <key_name>` | Retrieve a stored key |
+| `keyring-cli list` | List stored keys (names only) |
+| `keyring-cli delete --key <key_name>` | Delete a key from keyring |
+| `keyring-cli export` | Export all keys (encrypted) |
+| `keyring-cli import` | Import keys from encrypted backup |
+| `keyring-cli export-migration` | Export for moving to a new workstation |
+| `keyring-cli import-migration` | Import keys on a new workstation |
 
 ---
-
-## **11. Need Help?**
-For additional support, run:
-```sh
-python keyring_cli.py help
-```
