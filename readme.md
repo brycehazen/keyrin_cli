@@ -5,7 +5,7 @@
 
 ---
 
-## **2 Setting Up `keyring_cli.py` to be used globally (not in a venv)y**
+## **2 Setting Up `keyring_cli.py` to be used globally (not in a venv)**
 ### **Change location of where files should be  in keyring_cli.py:***
    - `SERVICE_NAME = "GlobalSecrets"`
    - `EXPORT_FILE = r"C:\.virtualenv\keyring_backup.enc"`
