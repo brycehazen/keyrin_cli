@@ -14,19 +14,38 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 SERVICE_NAME = "GlobalSecrets"
-EXPORT_FILE = r"C:\.virtualenv\keyring_backup.enc"
-TRACKED_KEYS_FILE = r"C:\.virtualenv\tracked_keys.json"
-MIGRATION_FILE = r"C:\.virtualenv\keyring_migration.enc"
+EXPORT_FILE = r"C:\pwsh_output_log\keyring_backup.enc"
+TRACKED_KEYS_FILE = r"C:\pwsh_output_log\tracked_keys.json"
+MIGRATION_FILE = r"C:\pwsh_output_log\keyring_migration.enc"
 
 def verify_windows_login(password: str) -> bool:
     try:
-        domain = win32api.GetComputerName()
+        # detect user is local, network, or domain-based - store password accordingly - allowing users to use the password if they RDP
         username = getpass.getuser()
+        local_machine = win32api.GetComputerName()
+        user_domain_env = os.environ.get("USERDOMAIN", "")
+        
+        if user_domain_env.upper() == local_machine.upper():
+            print("Detected local user context.")
+            domain = local_machine
+            # Use interactive logon so that password can be used for RDP
+            logon_type = win32con.LOGON32_LOGON_INTERACTIVE
+        elif user_domain_env.strip() == "":
+            print("Detected network-based user context.")
+            domain = local_machine
+            # Use network logon
+            logon_type = win32con.LOGON32_LOGON_NETWORK
+        else:
+            print(f"Detected domain-based user context: {user_domain_env}")
+            domain = user_domain_env
+            # Use interactive logon so that password can be used for RDP
+            logon_type = win32con.LOGON32_LOGON_INTERACTIVE
+
         handle = win32security.LogonUser(
             username,
             domain,
             password,
-            win32con.LOGON32_LOGON_NETWORK,
+            logon_type,
             win32con.LOGON32_PROVIDER_DEFAULT
         )
         handle.Close()
