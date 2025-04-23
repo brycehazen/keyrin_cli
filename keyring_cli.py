@@ -13,39 +13,23 @@ import toml
 from datetime import datetime
 from typing import Dict, Any, Optional
 
+# Import the secure keyring wrapper for usage tracking
+import secure_keyring
+
 SERVICE_NAME = "GlobalSecrets"
-EXPORT_FILE = r"C:\pwsh_output_log\keyring_backup.enc"
-TRACKED_KEYS_FILE = r"C:\pwsh_output_log\tracked_keys.json"
-MIGRATION_FILE = r"C:\pwsh_output_log\keyring_migration.enc"
+EXPORT_FILE = r"path\keyring_backup.enc"
+TRACKED_KEYS_FILE = r"path\tracked_keys.json"
+MIGRATION_FILE = r"path\keyring_migration.enc"
 
 def verify_windows_login(password: str) -> bool:
     try:
-        # detect user is local, network, or domain-based - store password accordingly - allowing users to use the password if they RDP
+        domain = win32api.GetComputerName()
         username = getpass.getuser()
-        local_machine = win32api.GetComputerName()
-        user_domain_env = os.environ.get("USERDOMAIN", "")
-        
-        if user_domain_env.upper() == local_machine.upper():
-            print("Detected local user context.")
-            domain = local_machine
-            # Use interactive logon so that password can be used for RDP
-            logon_type = win32con.LOGON32_LOGON_INTERACTIVE
-        elif user_domain_env.strip() == "":
-            print("Detected network-based user context.")
-            domain = local_machine
-            # Use network logon
-            logon_type = win32con.LOGON32_LOGON_NETWORK
-        else:
-            print(f"Detected domain-based user context: {user_domain_env}")
-            domain = user_domain_env
-            # Use interactive logon so that password can be used for RDP
-            logon_type = win32con.LOGON32_LOGON_INTERACTIVE
-
         handle = win32security.LogonUser(
             username,
             domain,
             password,
-            logon_type,
+            win32con.LOGON32_LOGON_NETWORK,
             win32con.LOGON32_PROVIDER_DEFAULT
         )
         handle.Close()
@@ -155,8 +139,8 @@ def export_keys(migration: bool = False):
     output_file = EXPORT_FILE
 
     if migration:
-        migration_password = getpass.getpass("Enter a migration password for the new workstation: ")
-        confirm_password = getpass.getpass("Confirm migration password: ")
+        migration_password = getpass.getpass("Create a password for file keyring_migration.enc: ")
+        confirm_password = getpass.getpass("Confirm password for file keyring_migration.enc: ")
         if migration_password != confirm_password:
             print("Error: Passwords do not match.")
             return
@@ -279,6 +263,110 @@ def list_keys():
             if metadata.get("added_date"):
                 print(f"Added: {metadata['added_date']}")
 
+def report_key_usage(key_name=None):
+    """Report usage statistics for keys"""
+    windows_password = getpass.getpass("Enter your Windows login password: ")
+    if not verify_windows_login(windows_password):
+        print("Error: Incorrect Windows login password.")
+        return
+
+    # Use secure_keyring to get metadata
+    all_metadata = secure_keyring.get_key_metadata()
+    if not all_metadata:
+        print("No keys found.")
+        return
+    
+    if key_name and key_name not in all_metadata:
+        print(f"Key not found: {key_name}")
+        return
+    
+    keys_to_report = [key_name] if key_name else all_metadata.keys()
+    
+    print("\nKey Usage Report:")
+    print("=" * 60)
+    
+    for key in keys_to_report:
+        metadata = all_metadata.get(key, {})
+        print(f"\nKey: {key}")
+        
+        if "description" in metadata and metadata["description"]:
+            print(f"Description: {metadata['description']}")
+        
+        # Get usage data from secure_keyring
+        usage_data = secure_keyring.get_usage_data(key)
+        
+        print("\nUsage Statistics:")
+        print("-" * 50)
+        
+        if not usage_data:
+            print("This key has not been accessed yet.")
+        else:
+            # Sort files by usage count (descending)
+            sorted_files = sorted(
+                usage_data.items(), 
+                key=lambda x: x[1]["count"], 
+                reverse=True
+            )
+            
+            total_count = sum(file_data["count"] for _, file_data in sorted_files)
+            print(f"Total accesses: {total_count}")
+            
+            for file_path, file_data in sorted_files:
+                print(f"\nFile: {file_path}")
+                print(f"  Access count: {file_data['count']}")
+                print(f"  First used: {file_data.get('first_used', 'Unknown')}")
+                print(f"  Last used: {file_data.get('last_used', 'Unknown')}")
+    
+    print("\n" + "=" * 60)
+
+def report_all_usage():
+    """Generate a comprehensive report of all key usage"""
+    windows_password = getpass.getpass("Enter your Windows login password: ")
+    if not verify_windows_login(windows_password):
+        print("Error: Incorrect Windows login password.")
+        return
+
+    # Get all usage data from secure_keyring
+    all_usage = secure_keyring.get_usage_data()
+    all_metadata = secure_keyring.get_key_metadata()
+    
+    if not all_metadata:
+        print("No keys found.")
+        return
+    
+    # Collect usage data
+    file_usage = {}
+    key_usage = {}
+    
+    for key, usage in all_usage.items():
+        if usage:
+            key_usage[key] = sum(file_data["count"] for file_data in usage.values())
+            
+            for file_path, file_data in usage.items():
+                if file_path not in file_usage:
+                    file_usage[file_path] = 0
+                file_usage[file_path] += file_data["count"]
+    
+    # Sort by usage count
+    sorted_keys = sorted(key_usage.items(), key=lambda x: x[1], reverse=True)
+    sorted_files = sorted(file_usage.items(), key=lambda x: x[1], reverse=True)
+    
+    print("\nComprehensive Usage Report:")
+    print("=" * 60)
+    
+    print("\nMost Accessed Keys:")
+    print("-" * 50)
+    for key, count in sorted_keys:
+        description = all_metadata.get(key, {}).get("description", "")
+        print(f"{key}: {count} accesses" + (f" - {description}" if description else ""))
+    
+    print("\nFiles Accessing Keys:")
+    print("-" * 50)
+    for file_path, count in sorted_files:
+        print(f"{file_path}: {count} accesses")
+    
+    print("\n" + "=" * 60)
+
 def show_help():
     """Display detailed help information about using the script."""
     help_text = """
@@ -288,60 +376,65 @@ Keyring CLI Help
 Commands:
 ---------
 1. Store a single key:
-   python keyring_cli.py store --key <key_name> --value <secret_value> --description "Optional description"
-   Example: python keyring_cli.py store --key api_key --value abc123 --description "Production API key"
+   keyring store --key <key_name> --value <secret_value> --description "Optional description"
+   Example: keyring store --key api_key --value abc123 --description "Production API key"
 
 2. Get a key's value:
-   python keyring_cli.py get --key <key_name>
-   Example: python keyring_cli.py get --key api_key
+   keyring get --key <key_name>
+   Example: keyring get --key api_key
 
 3. List all stored keys:
-   python keyring_cli.py list
+   keyring list
 
 4. Delete a key:
-   python keyring_cli.py delete --key <key_name>
-   Example: python keyring_cli.py delete --key old_api_key
+   keyring delete --key <key_name>
+   Example: keyring delete --key old_api_key
 
 5. Export keys (secured with Windows password):
-   python keyring_cli.py export
+   keyring export
 
 6. Import keys:
-   python keyring_cli.py import
+   keyring import
 
 7. Export for migration to new workstation:
-   python keyring_cli.py export-migration
+   keyring export-migration
 
 8. Import on new workstation:
-   python keyring_cli.py import-migration
+   keyring import-migration
 
 9. View all secrets:
-   python keyring_cli.py view
+   keyring view
 
 10. Bulk import from JSON:
-    python keyring_cli.py import-json --file <path_to_json>
-    Example: python keyring_cli.py import-json --file config.json
+    keyring import-json --file <path_to_json>
+    Example: keyring import-json --file config.json
 
 11. Bulk import from TOML:
-    python keyring_cli.py import-toml --file <path_to_toml>
-    Example: python keyring_cli.py import-toml --file config.toml
+    keyring import-toml --file <path_to_toml>
+    Example: keyring import-toml --file config.toml
 
-12. Show this help:
-    python keyring_cli.py help
+12. Report usage for a specific key:
+    keyring usage --key <key_name>
+    Example: keyring usage --key api_key
+
+13. Generate a comprehensive usage report:
+    keyring usage-report
+
+14. Show this help:
+    keyring help
 
 Using Keys in Your Scripts:
 -------------------------
-To use these keys in your Python scripts:
+To use these keys in your Python scripts with usage tracking:
 
-import keyring
+import secure_keyring
 
-SERVICE_NAME = "GlobalSecrets"
-
-# Get a single key
-api_key = keyring.get_password(SERVICE_NAME, "my_api_key")
+# Get a single key (usage will be tracked)
+api_key = secure_keyring.get_password("my_api_key")
 
 # Example with nested keys from JSON import
-app_id = keyring.get_password(SERVICE_NAME, "sky_app_information.app_id")
-webhook_key = keyring.get_password(SERVICE_NAME, "webhook.webhook_key")
+app_id = secure_keyring.get_password("sky_app_information.app_id")
+webhook_key = secure_keyring.get_password("webhook.webhook_key")
 
 # Example usage
 requests.get("https://api.example.com", headers={"Authorization": f"Bearer {api_key}"})
@@ -353,6 +446,7 @@ Notes:
 - Export files are encrypted with Windows login or migration password
 - Keys from JSON/TOML files maintain their hierarchy using dot notation
 - Migration allows transfer of keys between workstations
+- Usage tracking records which files access each key and how often
 """
     print(help_text)
 
@@ -363,7 +457,8 @@ def main():
                        choices=["store", "get", "list", "delete", 
                                "export", "import", "export-migration", 
                                "import-migration", "view",
-                               "import-json", "import-toml", "help"],
+                               "import-json", "import-toml", "help",
+                               "usage", "usage-report"],
                        help="Action to perform")
     parser.add_argument("--key", help="Key name")
     parser.add_argument("--value", help="Value to store (only for 'store' action)")
@@ -434,6 +529,10 @@ def main():
             print("Error: --file parameter required for TOML import")
         else:
             bulk_import_toml(args.file)
+    elif args.action == "usage":
+        report_key_usage(args.key)
+    elif args.action == "usage-report":
+        report_all_usage()
 
 if __name__ == "__main__":
     main()
